@@ -13,14 +13,14 @@ PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
 ENV_SOURCE_LINE='[ -f "$HOME/.config/opencode/env.sh" ] && . "$HOME/.config/opencode/env.sh"'
 PATH_LINE='export PATH="$HOME/.opencode/bin:$PATH"'
 
-OPENCODE_MODEL="${OPENCODE_MODEL:-anthropic/claude-sonnet-4-5}"
+OPENCODE_MODEL="deepseek/deepseek-chat"
 OPENCODE_CONFIG_SCOPE="${OPENCODE_CONFIG_SCOPE:-project}"
-OPENCODE_PROVIDER_BASE_URL="${OPENCODE_PROVIDER_BASE_URL:-}"
+DEEPSEEK_BASE_URL="${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
+DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-sk-1c14ed4470fe42aa84684b58cdd7a7e6}"
 FORCE_WRITE_OPENCODE_CONFIG="${FORCE_WRITE_OPENCODE_CONFIG:-false}"
 START_OPENCODE_AFTER_INSTALL="${START_OPENCODE_AFTER_INSTALL:-true}"
-RUN_AUTH_LOGIN_AFTER_INSTALL="${RUN_AUTH_LOGIN_AFTER_INSTALL:-false}"
 RESTART_LOGIN_SHELL_AFTER_INSTALL="${RESTART_LOGIN_SHELL_AFTER_INSTALL:-false}"
-PERSISTED_ENV_VARS="${PERSISTED_ENV_VARS:-ANTHROPIC_API_KEY OPENAI_API_KEY OPENROUTER_API_KEY DEEPSEEK_API_KEY GOOGLE_API_KEY GEMINI_API_KEY XAI_API_KEY MISTRAL_API_KEY AZURE_OPENAI_API_KEY AZURE_OPENAI_ENDPOINT OLLAMA_HOST AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_REGION AWS_DEFAULT_REGION}"
+PERSISTED_ENV_VARS="${PERSISTED_ENV_VARS:-DEEPSEEK_API_KEY DEEPSEEK_BASE_URL}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -117,9 +117,6 @@ write_env_file() {
 
 write_opencode_config() {
   local config_file="$1"
-  local provider_name
-
-  provider_name="${OPENCODE_MODEL%%/*}"
   mkdir -p "$(dirname "${config_file}")"
 
   if [ -f "${config_file}" ] && [ "${FORCE_WRITE_OPENCODE_CONFIG}" != "true" ]; then
@@ -134,26 +131,20 @@ write_opencode_config() {
     echo "{"
     echo "  \"\$schema\": \"https://opencode.ai/config.json\","
     echo "  \"model\": \"${OPENCODE_MODEL}\","
+    echo "  \"provider\": {"
+    echo "    \"deepseek\": {"
+    echo "      \"api\": \"openai-completions\","
+    echo "      \"options\": {"
+    echo "        \"baseURL\": \"${DEEPSEEK_BASE_URL}\","
+    echo "        \"apiKey\": \"${DEEPSEEK_API_KEY}\""
+    echo "      }"
+    echo "    }"
+    echo "  },"
     echo "  \"permission\": {"
     echo "    \"skill\": {"
     echo "      \"*\": \"allow\""
     echo "    }"
-    if [ -n "${OPENCODE_PROVIDER_BASE_URL}" ]; then
-      echo "  },"
-    else
-      echo "  }"
-    fi
-
-    if [ -n "${OPENCODE_PROVIDER_BASE_URL}" ]; then
-      echo "  \"provider\": {"
-      echo "    \"${provider_name}\": {"
-      echo "      \"options\": {"
-      echo "        \"baseURL\": \"${OPENCODE_PROVIDER_BASE_URL}\""
-      echo "      }"
-      echo "    }"
-      echo "  }"
-    fi
-
+    echo "  }"
     echo "}"
   } > "${config_file}"
 
@@ -170,9 +161,7 @@ show_auth_hint_if_needed() {
   done
 
   echo "[opencode-init] no provider credential detected in current shell"
-  echo "[opencode-init] you can set an API key before running this script, for example:"
-  echo "  ANTHROPIC_API_KEY=your_key bash tools/opencode/install-in-container.sh"
-  echo "[opencode-init] or run: opencode auth login"
+  echo "[opencode-init] DEEPSEEK_API_KEY is not set in current shell"
 }
 
 require_command bash
@@ -218,10 +207,6 @@ echo "[opencode-init] version: $(opencode --version)"
 echo "[opencode-init] model: ${OPENCODE_MODEL}"
 echo "[opencode-init] config scope: ${OPENCODE_CONFIG_SCOPE}"
 show_auth_hint_if_needed
-
-if [ "${RUN_AUTH_LOGIN_AFTER_INSTALL}" = "true" ]; then
-  opencode auth login
-fi
 
 if [ "${START_OPENCODE_AFTER_INSTALL}" = "true" ]; then
   echo "[opencode-init] starting opencode"
