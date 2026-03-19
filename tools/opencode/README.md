@@ -47,11 +47,66 @@ GITHUB_PROXY_PREFIX="https://your-proxy.example.com/" bash tools/opencode/bootst
 
 ```bash
 bash tools/opencode/install-in-container.sh
-export PATH="$HOME/.opencode/bin:$PATH"
-opencode --version
+```
+
+By default, `install-in-container.sh` now:
+
+- installs OpenCode from local project files
+- writes `~/.config/opencode/env.sh`
+- adds shell startup sourcing to `~/.bashrc`, `~/.bash_profile`, and `~/.profile`
+- writes project-level `opencode.json` by default
+- starts `opencode` immediately after install
+
+### Recommended one-line usage
+
+Anthropic example:
+
+```bash
+ANTHROPIC_API_KEY="your_key" \
+OPENCODE_MODEL="anthropic/claude-sonnet-4-5" \
+bash tools/opencode/install-in-container.sh
+```
+
+OpenAI example:
+
+```bash
+OPENAI_API_KEY="your_key" \
+OPENCODE_MODEL="openai/gpt-5" \
+bash tools/opencode/install-in-container.sh
+```
+
+OpenRouter example:
+
+```bash
+OPENROUTER_API_KEY="your_key" \
+OPENCODE_MODEL="openrouter/anthropic/claude-sonnet-4-5" \
+bash tools/opencode/install-in-container.sh
+```
+
+### Useful parameters
+
+```bash
+START_OPENCODE_AFTER_INSTALL=false bash tools/opencode/install-in-container.sh
+RUN_AUTH_LOGIN_AFTER_INSTALL=true bash tools/opencode/install-in-container.sh
+OPENCODE_CONFIG_SCOPE=global bash tools/opencode/install-in-container.sh
+FORCE_WRITE_OPENCODE_CONFIG=true bash tools/opencode/install-in-container.sh
+OPENCODE_PROVIDER_BASE_URL="https://your-proxy.example.com/v1" bash tools/opencode/install-in-container.sh
+```
+
+### What the script writes
+
+- Environment file: `~/.config/opencode/env.sh`
+- Project config by default: `./opencode.json`
+- Global config if requested: `~/.config/opencode/opencode.json`
+
+If `opencode.json` already exists, the script does not overwrite it unless you set:
+
+```bash
+FORCE_WRITE_OPENCODE_CONFIG=true
 ```
 
 ## Notes
 
 - The current bootstrap downloads `linux-x64` and `linux-x64-baseline` packages.
 - If the target container is `aarch64`, download the matching `opencode-linux-arm64.tar.gz` package manually into `tools/opencode/dist/`.
+- If you do not pass any provider credentials, the script still installs and writes model config, but you will need to run `opencode auth login` or `/connect` later.
