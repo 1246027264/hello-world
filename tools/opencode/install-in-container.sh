@@ -12,15 +12,17 @@ GLOBAL_CONFIG_FILE="${CONFIG_DIR}/opencode.json"
 PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
 ENV_SOURCE_LINE='[ -f "$HOME/.config/opencode/env.sh" ] && . "$HOME/.config/opencode/env.sh"'
 PATH_LINE='export PATH="$HOME/.opencode/bin:$PATH"'
+LOG_FILE="${PROJECT_DIR}/opencode.log"
 
 OPENCODE_MODEL="deepseek/deepseek-chat"
 OPENCODE_CONFIG_SCOPE="${OPENCODE_CONFIG_SCOPE:-project}"
 DEEPSEEK_BASE_URL="${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}"
 DEEPSEEK_API_KEY="${DEEPSEEK_API_KEY:-sk-1c14ed4470fe42aa84684b58cdd7a7e6}"
+OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD:-mypass}"
+OPENCODE_SERVER_HOSTNAME="${OPENCODE_SERVER_HOSTNAME:-0.0.0.0}"
+OPENCODE_SERVER_PORT="${OPENCODE_SERVER_PORT:-4096}"
 FORCE_WRITE_OPENCODE_CONFIG="${FORCE_WRITE_OPENCODE_CONFIG:-false}"
-START_OPENCODE_AFTER_INSTALL="${START_OPENCODE_AFTER_INSTALL:-true}"
-RESTART_LOGIN_SHELL_AFTER_INSTALL="${RESTART_LOGIN_SHELL_AFTER_INSTALL:-false}"
-PERSISTED_ENV_VARS="${PERSISTED_ENV_VARS:-DEEPSEEK_API_KEY DEEPSEEK_BASE_URL}"
+PERSISTED_ENV_VARS="${PERSISTED_ENV_VARS:-DEEPSEEK_API_KEY DEEPSEEK_BASE_URL OPENCODE_SERVER_PASSWORD}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -164,6 +166,43 @@ show_auth_hint_if_needed() {
   echo "[opencode-init] DEEPSEEK_API_KEY is not set in current shell"
 }
 
+start_opencode_server() {
+  local existing_pid=""
+
+  if command -v pgrep >/dev/null 2>&1; then
+    existing_pid="$(pgrep -f "opencode serve --hostname ${OPENCODE_SERVER_HOSTNAME} --port ${OPENCODE_SERVER_PORT}" | head -n 1 || true)"
+  fi
+
+  if [ -n "${existing_pid}" ]; then
+    echo "[opencode-init] opencode server already running, pid: ${existing_pid}"
+    echo "[opencode-init] log file: ${LOG_FILE}"
+    return 0
+  fi
+
+  (
+    cd "${PROJECT_DIR}"
+    export PATH="${HOME}/.opencode/bin:${PATH}"
+    export OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD}"
+    nohup opencode serve --hostname "${OPENCODE_SERVER_HOSTNAME}" --port "${OPENCODE_SERVER_PORT}" > "${LOG_FILE}" 2>&1 &
+    echo $! > "${PROJECT_DIR}/opencode.pid"
+  )
+
+  sleep 1
+
+  if [ -f "${PROJECT_DIR}/opencode.pid" ] && kill -0 "$(cat "${PROJECT_DIR}/opencode.pid")" >/dev/null 2>&1; then
+    echo "[opencode-init] opencode server started"
+    echo "[opencode-init] pid: $(cat "${PROJECT_DIR}/opencode.pid")"
+    echo "[opencode-init] password: ${OPENCODE_SERVER_PASSWORD}"
+    echo "[opencode-init] url: http://127.0.0.1:${OPENCODE_SERVER_PORT}/doc"
+    echo "[opencode-init] log file: ${LOG_FILE}"
+    return 0
+  fi
+
+  echo "[opencode-init] failed to start opencode server" >&2
+  echo "[opencode-init] check log: ${LOG_FILE}" >&2
+  exit 1
+}
+
 require_command bash
 require_command tar
 require_command grep
@@ -207,16 +246,4 @@ echo "[opencode-init] version: $(opencode --version)"
 echo "[opencode-init] model: ${OPENCODE_MODEL}"
 echo "[opencode-init] config scope: ${OPENCODE_CONFIG_SCOPE}"
 show_auth_hint_if_needed
-
-if [ "${START_OPENCODE_AFTER_INSTALL}" = "true" ]; then
-  echo "[opencode-init] starting opencode"
-  exec opencode
-fi
-
-if [ "${RESTART_LOGIN_SHELL_AFTER_INSTALL}" = "true" ] && [ -t 0 ] && [ -t 1 ]; then
-  echo "[opencode-init] restarting login shell"
-  exec "${SHELL:-/bin/bash}" -il
-fi
-
-echo "[opencode-init] next command:"
-echo "  . \"${ENV_FILE}\" && opencode"
+start_opencode_server
