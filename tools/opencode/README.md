@@ -18,6 +18,29 @@ Optional parameters:
 ```bash
 OPENCODE_VERSION=v1.2.27 bash tools/opencode/bootstrap-mac.sh
 DOWNLOAD_SOURCE=false bash tools/opencode/bootstrap-mac.sh
+DOWNLOAD_REGION=official bash tools/opencode/bootstrap-mac.sh
+GITHUB_PROXY_PREFIX="https://mirror.ghproxy.com/" bash tools/opencode/bootstrap-mac.sh
+```
+
+## China download acceleration
+
+`bootstrap-mac.sh` now defaults to `DOWNLOAD_REGION=cn`, which tries these download sources in order and falls back automatically if one fails:
+
+- `mirror.ghproxy.com`
+- `gh-proxy.com`
+- `kkgithub.com`
+- official `github.com`
+
+For the small `install.sh` file, it tries:
+
+- `opencode.ai`
+- `cdn.jsdelivr.net`
+- `raw.githubusercontent.com`
+
+If your network environment already has a better GitHub proxy, you can override it:
+
+```bash
+GITHUB_PROXY_PREFIX="https://your-proxy.example.com/" bash tools/opencode/bootstrap-mac.sh
 ```
 
 ## Run inside container
