@@ -7,18 +7,21 @@ DEFAULT_SERVER_PROJECT_DIR="/shared_data/app_data/www/default.qunar.com/webapps/
 PROJECT_DIR="${OPENCODE_PROJECT_DIR:-${SCRIPT_PROJECT_DIR}}"
 DIST_DIR="${BASE_DIR}/dist"
 SOURCE_SKILLS_DIR="${BASE_DIR}/skills"
-INSTALL_DIR="${HOME}/.opencode/bin"
 TMP_DIR="${TMPDIR:-/tmp}/opencode-install-$$"
-CONFIG_DIR="${HOME}/.config/opencode"
-ENV_FILE="${CONFIG_DIR}/env.sh"
-GLOBAL_CONFIG_FILE="${CONFIG_DIR}/opencode.json"
-PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
-PROJECT_OPENCODE_DIR="${PROJECT_DIR}/.opencode"
-PROJECT_SKILLS_DIR="${PROJECT_OPENCODE_DIR}/skills"
-ENV_SOURCE_LINE='[ -f "$HOME/.config/opencode/env.sh" ] && . "$HOME/.config/opencode/env.sh"'
-PATH_LINE='export PATH="$HOME/.opencode/bin:$PATH"'
-LOG_FILE="${PROJECT_DIR}/opencode.log"
-PID_FILE="${PROJECT_DIR}/opencode.pid"
+GLOBAL_CONFIG_DIR="${HOME}/.config/opencode"
+GLOBAL_CONFIG_FILE="${GLOBAL_CONFIG_DIR}/opencode.json"
+PROJECT_CONFIG_FILE=""
+PROJECT_OPENCODE_DIR=""
+PROJECT_SKILLS_DIR=""
+PROJECT_RUNTIME_DIR=""
+INSTALL_DIR=""
+OPENCODE_BIN=""
+ENV_FILE=""
+ENV_SOURCE_LINE=""
+PATH_LINE=""
+LOG_FILE=""
+PID_FILE=""
+HOST_TAG="$(hostname 2>/dev/null || echo unknown-host)"
 
 OPENCODE_MODEL="deepseek/deepseek-chat"
 OPENCODE_CONFIG_SCOPE="${OPENCODE_CONFIG_SCOPE:-project}"
@@ -50,15 +53,26 @@ finalize_exit_code() {
   exit 0
 }
 
+refresh_project_paths() {
+  PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
+  PROJECT_OPENCODE_DIR="${PROJECT_DIR}/.opencode"
+  PROJECT_SKILLS_DIR="${PROJECT_OPENCODE_DIR}/skills"
+  PROJECT_RUNTIME_DIR="${PROJECT_DIR}/.opencode-runtime"
+  INSTALL_DIR="${PROJECT_RUNTIME_DIR}/bin"
+  OPENCODE_BIN="${INSTALL_DIR}/opencode"
+  ENV_FILE="${PROJECT_RUNTIME_DIR}/env.sh"
+  ENV_SOURCE_LINE="[ -f \"${ENV_FILE}\" ] && . \"${ENV_FILE}\""
+  PATH_LINE="export PATH=\"${INSTALL_DIR}:\$PATH\""
+  LOG_FILE="${PROJECT_RUNTIME_DIR}/opencode-${HOST_TAG}.log"
+  PID_FILE="${PROJECT_RUNTIME_DIR}/opencode-${HOST_TAG}.pid"
+}
+
 resolve_project_dir() {
   if [ "${PROJECT_DIR}" = "${SCRIPT_PROJECT_DIR}" ] && [ -d "${DEFAULT_SERVER_PROJECT_DIR}" ]; then
     PROJECT_DIR="${DEFAULT_SERVER_PROJECT_DIR}"
-    PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
-    PROJECT_OPENCODE_DIR="${PROJECT_DIR}/.opencode"
-    PROJECT_SKILLS_DIR="${PROJECT_OPENCODE_DIR}/skills"
-    LOG_FILE="${PROJECT_DIR}/opencode.log"
-    PID_FILE="${PROJECT_DIR}/opencode.pid"
   fi
+
+  refresh_project_paths
 }
 
 append_path_if_missing() {
@@ -128,7 +142,7 @@ write_env_file() {
   local value
   local escaped_value
 
-  mkdir -p "${CONFIG_DIR}"
+  mkdir -p "$(dirname "${ENV_FILE}")"
 
   {
     echo "#!/usr/bin/env bash"
@@ -203,6 +217,7 @@ log_execution_user() {
   echo "[opencode-init] execution home: ${HOME}"
   echo "[opencode-init] execution pwd: $(pwd)"
   echo "[opencode-init] execution shell: ${SHELL:-unknown}"
+  echo "[opencode-init] execution hostname: ${HOST_TAG}"
 }
 
 sync_project_skills() {
@@ -216,6 +231,26 @@ sync_project_skills() {
   cp -R "${SOURCE_SKILLS_DIR}/." "${PROJECT_SKILLS_DIR}/"
   echo "[opencode-init] project skills synced: ${PROJECT_SKILLS_DIR}"
   return 0
+}
+
+install_binary() {
+  mkdir -p "${INSTALL_DIR}"
+  cp "${TMP_DIR}/opencode" "${OPENCODE_BIN}"
+  chmod 755 "${OPENCODE_BIN}"
+  echo "[opencode-init] binary installed: ${OPENCODE_BIN}"
+}
+
+check_opencode_binary() {
+  local version_output
+
+  if version_output="$("${OPENCODE_BIN}" --version 2>&1)"; then
+    echo "[opencode-init] version: ${version_output}"
+    return 0
+  fi
+
+  echo "${version_output}" >&2
+  echo "[opencode-init] opencode binary validation failed: ${OPENCODE_BIN}" >&2
+  return 1
 }
 
 start_opencode_server() {
@@ -243,9 +278,9 @@ start_opencode_server() {
 
   (
     cd "${PROJECT_DIR}"
-    export PATH="${HOME}/.opencode/bin:${PATH}"
+    export PATH="${INSTALL_DIR}:${PATH}"
     export OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD}"
-    nohup opencode serve --hostname "${OPENCODE_SERVER_HOSTNAME}" --port "${OPENCODE_SERVER_PORT}" > "${LOG_FILE}" 2>&1 &
+    nohup "${OPENCODE_BIN}" serve --hostname "${OPENCODE_SERVER_HOSTNAME}" --port "${OPENCODE_SERVER_PORT}" > "${LOG_FILE}" 2>&1 &
     echo $! > "${PID_FILE}"
   )
 
@@ -299,12 +334,8 @@ require_command tar
 require_command grep
 require_command cp
 
+refresh_project_paths
 resolve_project_dir
-
-if [ ! -x "${BASE_DIR}/install.sh" ]; then
-  echo "[opencode-init] install.sh not found or not executable: ${BASE_DIR}/install.sh" >&2
-  exit 1
-fi
 
 PACKAGE="$(resolve_package)"
 
@@ -313,7 +344,7 @@ if [ ! -f "${DIST_DIR}/${PACKAGE}" ]; then
   exit 1
 fi
 
-mkdir -p "${TMP_DIR}" "${INSTALL_DIR}"
+mkdir -p "${TMP_DIR}" "${INSTALL_DIR}" "${PROJECT_RUNTIME_DIR}"
 trap finalize_exit_code EXIT
 
 tar -xzf "${DIST_DIR}/${PACKAGE}" -C "${TMP_DIR}"
@@ -323,9 +354,7 @@ if [ ! -f "${TMP_DIR}/opencode" ]; then
   exit 1
 fi
 
-chmod +x "${TMP_DIR}/opencode"
-bash "${BASE_DIR}/install.sh" --binary "${TMP_DIR}/opencode" --no-modify-path
-
+install_binary
 write_env_file
 append_path_if_missing "${HOME}/.bashrc"
 append_path_if_missing "${HOME}/.bash_profile"
@@ -340,11 +369,14 @@ fi
 
 echo "[opencode-init] install success"
 log_execution_user
-echo "[opencode-init] version: $(opencode --version)"
+echo "[opencode-init] runtime dir: ${PROJECT_RUNTIME_DIR}"
 echo "[opencode-init] model: ${OPENCODE_MODEL}"
 echo "[opencode-init] config scope: ${OPENCODE_CONFIG_SCOPE}"
 echo "[opencode-init] project dir: ${PROJECT_DIR}"
 show_auth_hint_if_needed
+if ! check_opencode_binary; then
+  exit 1
+fi
 if ! start_opencode_server; then
   exit 1
 fi

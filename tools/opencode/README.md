@@ -53,11 +53,12 @@ bash tools/opencode/install-in-container.sh
 By default, `install-in-container.sh` now:
 
 - installs OpenCode from local project files
-- writes `~/.config/opencode/env.sh`
+- writes a shared runtime environment file under the project
 - adds shell startup sourcing to `~/.bashrc`, `~/.bash_profile`, and `~/.profile`
 - writes project-level `opencode.json` by default
 - creates the project-level `.opencode/skills/` directory and copies `tools/opencode/skills/` into it
-- starts `opencode serve` in the background
+- installs the binary into the project shared runtime directory
+- starts `opencode serve` in the background with an absolute binary path
 
 ### Recommended one-line usage
 
@@ -97,7 +98,11 @@ OPENCODE_PROVIDER_BASE_URL="https://your-proxy.example.com/v1" bash tools/openco
 
 ### What the script writes
 
-- Environment file: `~/.config/opencode/env.sh`
+- Shared runtime directory: `./.opencode-runtime/`
+- Runtime binary: `./.opencode-runtime/bin/opencode`
+- Runtime env file: `./.opencode-runtime/env.sh`
+- Runtime log file: `./.opencode-runtime/opencode-<hostname>.log`
+- Runtime pid file: `./.opencode-runtime/opencode-<hostname>.pid`
 - Project config by default: `./opencode.json`
 - Global config if requested: `~/.config/opencode/opencode.json`
 - Project skills directory: `./.opencode/skills/`
@@ -114,3 +119,4 @@ FORCE_WRITE_OPENCODE_CONFIG=true
 - If the target container is `aarch64`, download the matching `opencode-linux-arm64.tar.gz` package manually into `tools/opencode/dist/`.
 - If you do not pass any provider credentials, the script still installs and writes model config, but you will need to run `opencode auth login` or `/connect` later.
 - The online server project directory defaults to `/shared_data/app_data/www/default.qunar.com/webapps/ROOT` when that path exists.
+- The runtime installation no longer depends on `$HOME`; it is stored under the project shared directory so different users and pods see the same binary path.
