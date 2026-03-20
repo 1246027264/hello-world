@@ -196,6 +196,15 @@ show_auth_hint_if_needed() {
   echo "[opencode-init] DEEPSEEK_API_KEY is not set in current shell"
 }
 
+log_execution_user() {
+  echo "[opencode-init] execution user: $(id -un 2>/dev/null || whoami 2>/dev/null || echo unknown)"
+  echo "[opencode-init] execution uid: $(id -u 2>/dev/null || echo unknown)"
+  echo "[opencode-init] execution gid: $(id -g 2>/dev/null || echo unknown)"
+  echo "[opencode-init] execution home: ${HOME}"
+  echo "[opencode-init] execution pwd: $(pwd)"
+  echo "[opencode-init] execution shell: ${SHELL:-unknown}"
+}
+
 sync_project_skills() {
   mkdir -p "${PROJECT_OPENCODE_DIR}" "${PROJECT_SKILLS_DIR}"
 
@@ -330,6 +339,7 @@ if ! sync_project_skills; then
 fi
 
 echo "[opencode-init] install success"
+log_execution_user
 echo "[opencode-init] version: $(opencode --version)"
 echo "[opencode-init] model: ${OPENCODE_MODEL}"
 echo "[opencode-init] config scope: ${OPENCODE_CONFIG_SCOPE}"
