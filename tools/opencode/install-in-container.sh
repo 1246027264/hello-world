@@ -2,14 +2,19 @@
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${BASE_DIR}/../.." && pwd)"
+SCRIPT_PROJECT_DIR="$(cd "${BASE_DIR}/../.." && pwd)"
+DEFAULT_SERVER_PROJECT_DIR="/shared_data/app_data/www/default.qunar.com/webapps/ROOT"
+PROJECT_DIR="${OPENCODE_PROJECT_DIR:-${SCRIPT_PROJECT_DIR}}"
 DIST_DIR="${BASE_DIR}/dist"
+SOURCE_SKILLS_DIR="${BASE_DIR}/skills"
 INSTALL_DIR="${HOME}/.opencode/bin"
 TMP_DIR="${TMPDIR:-/tmp}/opencode-install-$$"
 CONFIG_DIR="${HOME}/.config/opencode"
 ENV_FILE="${CONFIG_DIR}/env.sh"
 GLOBAL_CONFIG_FILE="${CONFIG_DIR}/opencode.json"
 PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
+PROJECT_OPENCODE_DIR="${PROJECT_DIR}/.opencode"
+PROJECT_SKILLS_DIR="${PROJECT_OPENCODE_DIR}/skills"
 ENV_SOURCE_LINE='[ -f "$HOME/.config/opencode/env.sh" ] && . "$HOME/.config/opencode/env.sh"'
 PATH_LINE='export PATH="$HOME/.opencode/bin:$PATH"'
 LOG_FILE="${PROJECT_DIR}/opencode.log"
@@ -29,6 +34,17 @@ require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "[opencode-init] missing command: $1" >&2
     exit 1
+  fi
+}
+
+resolve_project_dir() {
+  if [ "${PROJECT_DIR}" = "${SCRIPT_PROJECT_DIR}" ] && [ -d "${DEFAULT_SERVER_PROJECT_DIR}" ]; then
+    PROJECT_DIR="${DEFAULT_SERVER_PROJECT_DIR}"
+    PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
+    PROJECT_OPENCODE_DIR="${PROJECT_DIR}/.opencode"
+    PROJECT_SKILLS_DIR="${PROJECT_OPENCODE_DIR}/skills"
+    LOG_FILE="${PROJECT_DIR}/opencode.log"
+    PID_FILE="${PROJECT_DIR}/opencode.pid"
   fi
 }
 
@@ -167,6 +183,19 @@ show_auth_hint_if_needed() {
   echo "[opencode-init] DEEPSEEK_API_KEY is not set in current shell"
 }
 
+sync_project_skills() {
+  mkdir -p "${PROJECT_OPENCODE_DIR}" "${PROJECT_SKILLS_DIR}"
+
+  if [ ! -d "${SOURCE_SKILLS_DIR}" ]; then
+    echo "[opencode-init] skills source directory not found: ${SOURCE_SKILLS_DIR}" >&2
+    return 1
+  fi
+
+  cp -R "${SOURCE_SKILLS_DIR}/." "${PROJECT_SKILLS_DIR}/"
+  echo "[opencode-init] project skills synced: ${PROJECT_SKILLS_DIR}"
+  return 0
+}
+
 start_opencode_server() {
   local existing_pid=""
   local started_pid=""
@@ -246,6 +275,9 @@ start_opencode_server() {
 require_command bash
 require_command tar
 require_command grep
+require_command cp
+
+resolve_project_dir
 
 if [ ! -x "${BASE_DIR}/install.sh" ]; then
   echo "[opencode-init] install.sh not found or not executable: ${BASE_DIR}/install.sh" >&2
@@ -280,11 +312,15 @@ append_path_if_missing "${HOME}/.profile"
 . "${ENV_FILE}"
 CONFIG_FILE="$(resolve_config_file)"
 write_opencode_config "${CONFIG_FILE}"
+if ! sync_project_skills; then
+  exit 1
+fi
 
 echo "[opencode-init] install success"
 echo "[opencode-init] version: $(opencode --version)"
 echo "[opencode-init] model: ${OPENCODE_MODEL}"
 echo "[opencode-init] config scope: ${OPENCODE_CONFIG_SCOPE}"
+echo "[opencode-init] project dir: ${PROJECT_DIR}"
 show_auth_hint_if_needed
 if ! start_opencode_server; then
   exit 1
