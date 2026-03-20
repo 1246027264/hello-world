@@ -200,7 +200,7 @@ start_opencode_server() {
 
   if [ ! -f "${PID_FILE}" ]; then
     echo "[opencode-init] failed to capture opencode server pid" >&2
-    exit 1
+    return 1
   fi
 
   started_pid="$(cat "${PID_FILE}")"
@@ -240,7 +240,7 @@ start_opencode_server() {
 
   echo "[opencode-init] failed to start opencode server" >&2
   echo "[opencode-init] check log: ${LOG_FILE}" >&2
-  exit 1
+  return 1
 }
 
 require_command bash
@@ -286,4 +286,8 @@ echo "[opencode-init] version: $(opencode --version)"
 echo "[opencode-init] model: ${OPENCODE_MODEL}"
 echo "[opencode-init] config scope: ${OPENCODE_CONFIG_SCOPE}"
 show_auth_hint_if_needed
-start_opencode_server
+if ! start_opencode_server; then
+  exit 1
+fi
+
+exit 0
