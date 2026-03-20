@@ -13,6 +13,7 @@ PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
 ENV_SOURCE_LINE='[ -f "$HOME/.config/opencode/env.sh" ] && . "$HOME/.config/opencode/env.sh"'
 PATH_LINE='export PATH="$HOME/.opencode/bin:$PATH"'
 LOG_FILE="${PROJECT_DIR}/opencode.log"
+PID_FILE="${PROJECT_DIR}/opencode.pid"
 
 OPENCODE_MODEL="deepseek/deepseek-chat"
 OPENCODE_CONFIG_SCOPE="${OPENCODE_CONFIG_SCOPE:-project}"
@@ -168,6 +169,15 @@ show_auth_hint_if_needed() {
 
 start_opencode_server() {
   local existing_pid=""
+  local started_pid=""
+  local wait_seconds=15
+  local i
+
+  if [ -f "${PID_FILE}" ] && kill -0 "$(cat "${PID_FILE}")" >/dev/null 2>&1; then
+    echo "[opencode-init] opencode server already running, pid: $(cat "${PID_FILE}")"
+    echo "[opencode-init] log file: ${LOG_FILE}"
+    return 0
+  fi
 
   if command -v pgrep >/dev/null 2>&1; then
     existing_pid="$(pgrep -f "opencode serve --hostname ${OPENCODE_SERVER_HOSTNAME} --port ${OPENCODE_SERVER_PORT}" | head -n 1 || true)"
@@ -176,6 +186,7 @@ start_opencode_server() {
   if [ -n "${existing_pid}" ]; then
     echo "[opencode-init] opencode server already running, pid: ${existing_pid}"
     echo "[opencode-init] log file: ${LOG_FILE}"
+    echo "${existing_pid}" > "${PID_FILE}"
     return 0
   fi
 
@@ -184,18 +195,47 @@ start_opencode_server() {
     export PATH="${HOME}/.opencode/bin:${PATH}"
     export OPENCODE_SERVER_PASSWORD="${OPENCODE_SERVER_PASSWORD}"
     nohup opencode serve --hostname "${OPENCODE_SERVER_HOSTNAME}" --port "${OPENCODE_SERVER_PORT}" > "${LOG_FILE}" 2>&1 &
-    echo $! > "${PROJECT_DIR}/opencode.pid"
+    echo $! > "${PID_FILE}"
   )
 
-  sleep 1
+  if [ ! -f "${PID_FILE}" ]; then
+    echo "[opencode-init] failed to capture opencode server pid" >&2
+    exit 1
+  fi
 
-  if [ -f "${PROJECT_DIR}/opencode.pid" ] && kill -0 "$(cat "${PROJECT_DIR}/opencode.pid")" >/dev/null 2>&1; then
-    echo "[opencode-init] opencode server started"
-    echo "[opencode-init] pid: $(cat "${PROJECT_DIR}/opencode.pid")"
-    echo "[opencode-init] password: ${OPENCODE_SERVER_PASSWORD}"
-    echo "[opencode-init] url: http://127.0.0.1:${OPENCODE_SERVER_PORT}/doc"
-    echo "[opencode-init] log file: ${LOG_FILE}"
-    return 0
+  started_pid="$(cat "${PID_FILE}")"
+
+  for i in $(seq 1 "${wait_seconds}"); do
+    if ! kill -0 "${started_pid}" >/dev/null 2>&1; then
+      break
+    fi
+
+    if command -v curl >/dev/null 2>&1; then
+      if curl -s -u "opencode:${OPENCODE_SERVER_PASSWORD}" "http://127.0.0.1:${OPENCODE_SERVER_PORT}/global/health" >/dev/null 2>&1; then
+        echo "[opencode-init] opencode server started"
+        echo "[opencode-init] pid: ${started_pid}"
+        echo "[opencode-init] password: ${OPENCODE_SERVER_PASSWORD}"
+        echo "[opencode-init] url: http://127.0.0.1:${OPENCODE_SERVER_PORT}/doc"
+        echo "[opencode-init] log file: ${LOG_FILE}"
+        return 0
+      fi
+    else
+      if [ "${i}" -ge 3 ]; then
+        echo "[opencode-init] opencode server started"
+        echo "[opencode-init] pid: ${started_pid}"
+        echo "[opencode-init] password: ${OPENCODE_SERVER_PASSWORD}"
+        echo "[opencode-init] url: http://127.0.0.1:${OPENCODE_SERVER_PORT}/doc"
+        echo "[opencode-init] log file: ${LOG_FILE}"
+        return 0
+      fi
+    fi
+
+    sleep 1
+  done
+
+  if [ -f "${LOG_FILE}" ]; then
+    echo "[opencode-init] last log lines:" >&2
+    tail -n 50 "${LOG_FILE}" >&2 || true
   fi
 
   echo "[opencode-init] failed to start opencode server" >&2
