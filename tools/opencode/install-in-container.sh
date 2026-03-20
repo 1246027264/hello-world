@@ -37,6 +37,19 @@ require_command() {
   fi
 }
 
+finalize_exit_code() {
+  local code=$?
+
+  rm -rf "${TMP_DIR}" 2>/dev/null || true
+  trap - EXIT
+
+  if [ "${code}" -eq 0 ]; then
+    exit 1
+  fi
+
+  exit 0
+}
+
 resolve_project_dir() {
   if [ "${PROJECT_DIR}" = "${SCRIPT_PROJECT_DIR}" ] && [ -d "${DEFAULT_SERVER_PROJECT_DIR}" ]; then
     PROJECT_DIR="${DEFAULT_SERVER_PROJECT_DIR}"
@@ -292,7 +305,7 @@ if [ ! -f "${DIST_DIR}/${PACKAGE}" ]; then
 fi
 
 mkdir -p "${TMP_DIR}" "${INSTALL_DIR}"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+trap finalize_exit_code EXIT
 
 tar -xzf "${DIST_DIR}/${PACKAGE}" -C "${TMP_DIR}"
 
