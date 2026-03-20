@@ -22,6 +22,7 @@ PATH_LINE=""
 LOG_FILE=""
 PID_FILE=""
 HOST_TAG="$(hostname 2>/dev/null || echo unknown-host)"
+SELECTED_PACKAGE=""
 
 OPENCODE_MODEL="deepseek/deepseek-chat"
 OPENCODE_CONFIG_SCOPE="${OPENCODE_CONFIG_SCOPE:-project}"
@@ -107,6 +108,25 @@ resolve_package() {
     *)
       echo "[opencode-init] unsupported arch: ${arch}" >&2
       exit 1
+      ;;
+  esac
+}
+
+resolve_musl_fallback_package() {
+  local primary_package="$1"
+
+  case "${primary_package}" in
+    opencode-linux-x64.tar.gz)
+      echo "opencode-linux-x64-musl.tar.gz"
+      ;;
+    opencode-linux-x64-baseline.tar.gz)
+      echo "opencode-linux-x64-baseline-musl.tar.gz"
+      ;;
+    opencode-linux-arm64.tar.gz)
+      echo "opencode-linux-arm64-musl.tar.gz"
+      ;;
+    *)
+      echo ""
       ;;
   esac
 }
@@ -234,14 +254,34 @@ sync_project_skills() {
 }
 
 install_binary() {
-  mkdir -p "${INSTALL_DIR}"
-  cp "${TMP_DIR}/opencode" "${OPENCODE_BIN}"
+  local package_name="$1"
+  local extract_dir="${TMP_DIR}/extract"
+
+  if [ ! -f "${DIST_DIR}/${package_name}" ]; then
+    echo "[opencode-init] package not found: ${DIST_DIR}/${package_name}" >&2
+    return 1
+  fi
+
+  rm -rf "${extract_dir}"
+  mkdir -p "${INSTALL_DIR}" "${extract_dir}"
+  tar -xzf "${DIST_DIR}/${package_name}" -C "${extract_dir}"
+
+  if [ ! -f "${extract_dir}/opencode" ]; then
+    echo "[opencode-init] extracted binary not found in package: ${package_name}" >&2
+    return 1
+  fi
+
+  cp "${extract_dir}/opencode" "${OPENCODE_BIN}"
   chmod 755 "${OPENCODE_BIN}"
+  SELECTED_PACKAGE="${package_name}"
   echo "[opencode-init] binary installed: ${OPENCODE_BIN}"
+  echo "[opencode-init] selected package: ${SELECTED_PACKAGE}"
+  return 0
 }
 
 check_opencode_binary() {
   local version_output
+  local fallback_package=""
 
   if version_output="$("${OPENCODE_BIN}" --version 2>&1)"; then
     echo "[opencode-init] version: ${version_output}"
@@ -249,6 +289,23 @@ check_opencode_binary() {
   fi
 
   echo "${version_output}" >&2
+
+  fallback_package="$(resolve_musl_fallback_package "${SELECTED_PACKAGE}")"
+  if printf '%s' "${version_output}" | grep -q "GLIBC_" && [ -n "${fallback_package}" ] && [ -f "${DIST_DIR}/${fallback_package}" ]; then
+    echo "[opencode-init] detected glibc compatibility issue, retrying with musl package: ${fallback_package}"
+
+    if ! install_binary "${fallback_package}"; then
+      return 1
+    fi
+
+    if version_output="$("${OPENCODE_BIN}" --version 2>&1)"; then
+      echo "[opencode-init] version: ${version_output}"
+      return 0
+    fi
+
+    echo "${version_output}" >&2
+  fi
+
   echo "[opencode-init] opencode binary validation failed: ${OPENCODE_BIN}" >&2
   return 1
 }
@@ -339,22 +396,12 @@ resolve_project_dir
 
 PACKAGE="$(resolve_package)"
 
-if [ ! -f "${DIST_DIR}/${PACKAGE}" ]; then
-  echo "[opencode-init] package not found: ${DIST_DIR}/${PACKAGE}" >&2
-  exit 1
-fi
-
 mkdir -p "${TMP_DIR}" "${INSTALL_DIR}" "${PROJECT_RUNTIME_DIR}"
 trap finalize_exit_code EXIT
 
-tar -xzf "${DIST_DIR}/${PACKAGE}" -C "${TMP_DIR}"
-
-if [ ! -f "${TMP_DIR}/opencode" ]; then
-  echo "[opencode-init] extracted binary not found: ${TMP_DIR}/opencode" >&2
+if ! install_binary "${PACKAGE}"; then
   exit 1
 fi
-
-install_binary
 write_env_file
 append_path_if_missing "${HOME}/.bashrc"
 append_path_if_missing "${HOME}/.bash_profile"

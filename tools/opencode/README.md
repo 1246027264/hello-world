@@ -58,6 +58,7 @@ By default, `install-in-container.sh` now:
 - writes project-level `opencode.json` by default
 - creates the project-level `.opencode/skills/` directory and copies `tools/opencode/skills/` into it
 - installs the binary into the project shared runtime directory
+- retries with a musl package automatically if the glibc build reports `GLIBC_xxx not found`
 - starts `opencode serve` in the background with an absolute binary path
 
 ### Recommended one-line usage
@@ -116,6 +117,7 @@ FORCE_WRITE_OPENCODE_CONFIG=true
 ## Notes
 
 - The current bootstrap downloads `linux-x64` and `linux-x64-baseline` packages.
+- The current bootstrap also downloads `linux-x64-musl` and `linux-x64-baseline-musl` packages for glibc compatibility fallback.
 - If the target container is `aarch64`, download the matching `opencode-linux-arm64.tar.gz` package manually into `tools/opencode/dist/`.
 - If you do not pass any provider credentials, the script still installs and writes model config, but you will need to run `opencode auth login` or `/connect` later.
 - The online server project directory defaults to `/shared_data/app_data/www/default.qunar.com/webapps/ROOT` when that path exists.

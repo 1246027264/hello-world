@@ -93,6 +93,12 @@ download "${DIST_DIR}/opencode-linux-x64.tar.gz" \
 download "${DIST_DIR}/opencode-linux-x64-baseline.tar.gz" \
   $(github_candidates "anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-x64-baseline.tar.gz")
 
+download "${DIST_DIR}/opencode-linux-x64-musl.tar.gz" \
+  $(github_candidates "anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-x64-musl.tar.gz")
+
+download "${DIST_DIR}/opencode-linux-x64-baseline-musl.tar.gz" \
+  $(github_candidates "anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-x64-baseline-musl.tar.gz")
+
 if [ "${DOWNLOAD_SOURCE}" = "true" ]; then
   download "${SRC_DIR}/opencode-src-${OPENCODE_VERSION}.tar.gz" \
     $(github_candidates "anomalyco/opencode/archive/refs/tags/${OPENCODE_VERSION}.tar.gz")
