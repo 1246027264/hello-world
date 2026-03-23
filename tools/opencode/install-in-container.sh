@@ -7,12 +7,14 @@ DEFAULT_SERVER_PROJECT_DIR="/shared_data/app_data/www/default.qunar.com/webapps/
 PROJECT_DIR="${OPENCODE_PROJECT_DIR:-${SCRIPT_PROJECT_DIR}}"
 DIST_DIR="${BASE_DIR}/dist"
 SOURCE_SKILLS_DIR="${BASE_DIR}/skills"
+SOURCE_AGENTS_DIR="${BASE_DIR}/agents"
 TMP_DIR="${TMPDIR:-/tmp}/opencode-install-$$"
 GLOBAL_CONFIG_DIR="${HOME}/.config/opencode"
 GLOBAL_CONFIG_FILE="${GLOBAL_CONFIG_DIR}/opencode.json"
 PROJECT_CONFIG_FILE=""
 PROJECT_OPENCODE_DIR=""
 PROJECT_SKILLS_DIR=""
+PROJECT_AGENTS_DIR=""
 PROJECT_RUNTIME_DIR=""
 INSTALL_DIR=""
 OPENCODE_BIN=""
@@ -58,6 +60,7 @@ refresh_project_paths() {
   PROJECT_CONFIG_FILE="${PROJECT_DIR}/opencode.json"
   PROJECT_OPENCODE_DIR="${PROJECT_DIR}/.opencode"
   PROJECT_SKILLS_DIR="${PROJECT_OPENCODE_DIR}/skills"
+  PROJECT_AGENTS_DIR="${PROJECT_OPENCODE_DIR}/agents"
   PROJECT_RUNTIME_DIR="${PROJECT_DIR}/.opencode-runtime"
   INSTALL_DIR="${PROJECT_RUNTIME_DIR}/bin"
   OPENCODE_BIN="${INSTALL_DIR}/opencode"
@@ -253,6 +256,19 @@ sync_project_skills() {
   return 0
 }
 
+sync_project_agents() {
+  mkdir -p "${PROJECT_OPENCODE_DIR}" "${PROJECT_AGENTS_DIR}"
+
+  if [ ! -d "${SOURCE_AGENTS_DIR}" ]; then
+    echo "[opencode-init] agents source directory not found: ${SOURCE_AGENTS_DIR}" >&2
+    return 1
+  fi
+
+  cp -R "${SOURCE_AGENTS_DIR}/." "${PROJECT_AGENTS_DIR}/"
+  echo "[opencode-init] project agents synced: ${PROJECT_AGENTS_DIR}"
+  return 0
+}
+
 install_binary() {
   local package_name="$1"
   local extract_dir="${TMP_DIR}/extract"
@@ -411,6 +427,9 @@ append_path_if_missing "${HOME}/.profile"
 CONFIG_FILE="$(resolve_config_file)"
 write_opencode_config "${CONFIG_FILE}"
 if ! sync_project_skills; then
+  exit 1
+fi
+if ! sync_project_agents; then
   exit 1
 fi
 
