@@ -4,6 +4,7 @@
 
 - `bootstrap-mac.sh`: run on Mac to download Linux install artifacts into this project
 - `install-in-container.sh`: run inside the CentOS 8 container to install OpenCode from local files
+- `opencode.json`: local project config template copied into the target project during installation
 - `skills/`: stores project-level OpenCode skills that will be copied into `.opencode/skills/`
 - `agents/`: stores project-level OpenCode agents that will be copied into `.opencode/agents/`
 - `dist/`: stores Linux binary archives downloaded by `bootstrap-mac.sh`

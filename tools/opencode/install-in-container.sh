@@ -8,6 +8,7 @@ PROJECT_DIR="${OPENCODE_PROJECT_DIR:-${SCRIPT_PROJECT_DIR}}"
 DIST_DIR="${BASE_DIR}/dist"
 SOURCE_SKILLS_DIR="${BASE_DIR}/skills"
 SOURCE_AGENTS_DIR="${BASE_DIR}/agents"
+SOURCE_PROJECT_CONFIG_FILE="${BASE_DIR}/opencode.json"
 TMP_DIR="${TMPDIR:-/tmp}/opencode-install-$$"
 GLOBAL_CONFIG_DIR="${HOME}/.config/opencode"
 GLOBAL_CONFIG_FILE="${GLOBAL_CONFIG_DIR}/opencode.json"
@@ -184,9 +185,15 @@ write_env_file() {
   chmod 600 "${ENV_FILE}"
 }
 
-write_opencode_config() {
+sync_project_config() {
   local config_file="$1"
+
   mkdir -p "$(dirname "${config_file}")"
+
+  if [ ! -f "${SOURCE_PROJECT_CONFIG_FILE}" ]; then
+    echo "[opencode-init] local opencode.json not found: ${SOURCE_PROJECT_CONFIG_FILE}" >&2
+    return 1
+  fi
 
   if [ -f "${config_file}" ] && [ "${FORCE_WRITE_OPENCODE_CONFIG}" != "true" ]; then
     echo "[opencode-init] config exists, skip writing: ${config_file}"
@@ -195,29 +202,9 @@ write_opencode_config() {
   fi
 
   backup_if_exists "${config_file}"
-
-  {
-    echo "{"
-    echo "  \"\$schema\": \"https://opencode.ai/config.json\","
-    echo "  \"model\": \"${OPENCODE_MODEL}\","
-    echo "  \"provider\": {"
-    echo "    \"deepseek\": {"
-    echo "      \"api\": \"openai-completions\","
-    echo "      \"options\": {"
-    echo "        \"baseURL\": \"${DEEPSEEK_BASE_URL}\","
-    echo "        \"apiKey\": \"${DEEPSEEK_API_KEY}\""
-    echo "      }"
-    echo "    }"
-    echo "  },"
-    echo "  \"permission\": {"
-    echo "    \"skill\": {"
-    echo "      \"*\": \"allow\""
-    echo "    }"
-    echo "  }"
-    echo "}"
-  } > "${config_file}"
-
+  cp "${SOURCE_PROJECT_CONFIG_FILE}" "${config_file}"
   echo "[opencode-init] config written: ${config_file}"
+  return 0
 }
 
 show_auth_hint_if_needed() {
@@ -425,7 +412,9 @@ append_path_if_missing "${HOME}/.profile"
 
 . "${ENV_FILE}"
 CONFIG_FILE="$(resolve_config_file)"
-write_opencode_config "${CONFIG_FILE}"
+if ! sync_project_config "${CONFIG_FILE}"; then
+  exit 1
+fi
 if ! sync_project_skills; then
   exit 1
 fi
