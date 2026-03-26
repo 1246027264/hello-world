@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "gongsi": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Gongsi",
+      "options": {
+        "baseURL": "http://llm.api.corp.qunar.com/v1",
+        "apiKey": "{env:GONGSI_API_KEY}"
+      },
+      "models": {
+        "REPLACE_WITH_REAL_MODEL_ID": {
+          "name": "Gongsi Custom Model"
+        }
+      }
+    }
+  },
+  "model": "gongsi/REPLACE_WITH_REAL_MODEL_ID"
+}
