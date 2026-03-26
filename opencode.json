@@ -1,0 +1,62 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "*": "deny",
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow",
+      "*.pem": "deny",
+      "*.key": "deny",
+      "**/.ssh/**": "deny",
+      "**/id_rsa*": "deny",
+      "**/id_ed25519*": "deny"
+    },
+    "grep": "allow",
+    "list": "allow",
+    "external_directory": {
+      "*": "deny"
+    },
+    "doom_loop": "deny",
+    "bash": {
+      "*": "deny",
+      "ls": "allow",
+      "ls *": "allow",
+      "grep *": "allow",
+      "curl http://*": "allow",
+      "curl https://*": "allow",
+      "curl -I http://*": "allow",
+      "curl -I https://*": "allow",
+      "curl --head http://*": "allow",
+      "curl --head https://*": "allow",
+      "curl -s http://*": "allow",
+      "curl -s https://*": "allow",
+      "curl -sS http://*": "allow",
+      "curl -sS https://*": "allow",
+      "curl -L http://*": "allow",
+      "curl -L https://*": "allow",
+      "curl -sL http://*": "allow",
+      "curl -sL https://*": "allow",
+      "curl -fsSL http://*": "allow",
+      "curl -fsSL https://*": "allow",
+      "curl * -o *": "deny",
+      "curl * --output *": "deny",
+      "curl * -O *": "deny",
+      "curl * --remote-name *": "deny",
+      "curl * -T *": "deny",
+      "curl * --upload-file *": "deny",
+      "curl * -F *": "deny",
+      "curl * --form *": "deny",
+      "curl * -d *": "deny",
+      "curl * --data *": "deny",
+      "curl * --data-raw *": "deny",
+      "curl * --data-binary *": "deny",
+      "curl * -X *": "deny",
+      "curl * --request *": "deny",
+      "curl * | *": "deny",
+      "curl * > *": "deny",
+      "curl * >> *": "deny"
+    }
+  }
+}
